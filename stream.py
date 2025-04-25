@@ -1,15 +1,12 @@
-# minimal_stream.py
-
-# These lines MUST be at the very top of your script, before ANY other imports!
+# --- MUST BE AT TOP BEFORE ANY OTHER IMPORTS ---
 import os
 os.environ['STREAMLIT_DISABLE_WATCHER'] = 'true'
 
-# Import streamlit as the first regular import
+# --- Streamlit import and page config ---
 import streamlit as st
-# Set page config immediately after importing streamlit
 st.set_page_config(page_title="Resume Analyzer", page_icon="📄", layout="wide")
 
-# Now import other libraries
+# --- Other Imports ---
 from PyPDF2 import PdfReader
 import google.generativeai as genai
 from pinecone import Pinecone, ServerlessSpec
@@ -21,14 +18,25 @@ from sentence_transformers import SentenceTransformer
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- API Keys ---
+# --- Pinecone API Key ---
 PINECONE_API_KEY = "pcsk_4KDPSw_HdtwLfPcT7kcYoK7uG6Kz25GJHhNhyrFozXrvraQH7WDy8UYj4q6iCDhb8jnUFc"
-GEMINI_API_KEY = "AIzaSyBJT1pauDBLxAP5vcZmV_Ss9we_GpD4TsM"
 INDEX_NAME = "resumes"
+
+# --- Gemini API Key from User ---
+st.sidebar.subheader("🔐 Gemini API Key")
+user_api_key = st.sidebar.text_input("Enter your Gemini API Key", type="password")
+
+if user_api_key:
+    try:
+        genai.configure(api_key=user_api_key)
+        st.sidebar.success("Gemini API key loaded ✅")
+    except Exception as e:
+        st.sidebar.error(f"Invalid API key: {e}")
+else:
+    st.sidebar.warning("Please enter your Gemini API key to use the app.")
 
 # --- Initialization ---
 pc = Pinecone(api_key=PINECONE_API_KEY)
-genai.configure(api_key=GEMINI_API_KEY)
 
 # Load embedding model
 try:
@@ -100,7 +108,11 @@ def query_resume(query, name):
     if not index or not embedding_model:
         return "System not ready."
     
+    if not user_api_key:
+        return "Gemini API key is missing. Please provide it in the sidebar."
+
     try:
+        genai.configure(api_key=user_api_key)
         query_vec = embedding_model.encode(query).tolist()
         res = index.query(vector=query_vec, top_k=5, include_metadata=True, filter={"resume_name": name})
         chunks = [match.metadata["text"] for match in res.matches if "text" in match.metadata]
